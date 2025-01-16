@@ -144,7 +144,7 @@ export default function viteTimingPlugin(): Plugin {
           break;
         }
       }
-      return null;
+      // Return void instead of null
     }
   };
 };
