@@ -1,7 +1,9 @@
 import type { MetricsData } from '../types';
 
+const DEFAULT_ENDPOINT = 'http://compilation-metrics/vite';
+
 export const getEndpoint = (): string => {
-  return process.env.VITE_ENDPOINT || "http://compilation-metrics/vite";
+  return process.env.VITE_ENDPOINT ?? DEFAULT_ENDPOINT;
 };
 
 export async function sendMetrics(metricsData: MetricsData): Promise<void> {
