@@ -49,7 +49,7 @@ describe('viteTimingPlugin', () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     expect(watcherSpy).toHaveBeenCalledWith('change', expect.any(Function));
   });
-
+  
   it('should handle file changes and track timing', async () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     
@@ -87,18 +87,27 @@ describe('viteTimingPlugin', () => {
   it('should handle HMR updates with module count', () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     
-    // Simulate file change
+    // Simulate file change first to create an entry in the change map
     mockWatcher.emit('change', '/path/to/file.js');
     
-    // Simulate HMR update
-    const result = plugin.handleHotUpdate?.({
+    // Create HMR context
+    const context = {
       file: '/path/to/file.js',
       modules: [{ id: 1 }, { id: 2 }],
       read: async () => '',
       timestamp: Date.now()
-    });
-    
-    expect(result).toBeNull(); // Should not interfere with HMR
+    };
+  
+    // Call handleHotUpdate
+    const result = plugin.handleHotUpdate?.(context);
+    expect(result).toBeUndefined();
+  
+    // Get the internal state using our test helper
+    const changeMap = plugin._TEST_getChangeMap?.();
+    expect(changeMap).toBeDefined();
+    const changes = Array.from(changeMap!.values());
+    expect(changes).toHaveLength(1);
+    expect(changes[0].moduleCount).toBe(2);
   });
 
   it('should handle invalid WebSocket messages gracefully', () => {

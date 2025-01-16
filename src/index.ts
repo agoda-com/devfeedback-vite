@@ -6,7 +6,11 @@ import { getCommonMetadata } from './utils/metadata';
 import { sendMetrics } from './utils/metrics';
 import type { IncomingMessage, ServerResponse } from 'http';
 
-export default function viteTimingPlugin(): Plugin {
+export interface ViteTimingPlugin extends Plugin {
+  _TEST_getChangeMap?: () => Map<string, TimingEntry>;
+}
+
+export default function viteTimingPlugin(): ViteTimingPlugin {
   const changeMap = new Map<string, TimingEntry>();
   
   const getChangeKey = (file: string, timestamp: number): string => 
@@ -78,7 +82,7 @@ export default function viteTimingPlugin(): Plugin {
     });
   };
   
-  return {
+  const plugin: ViteTimingPlugin = {
     name: 'vite-timing-plugin',
     
     configureServer(server: ViteDevServer) {
@@ -144,7 +148,12 @@ export default function viteTimingPlugin(): Plugin {
           break;
         }
       }
-      // Return void instead of null
     }
   };
-};
+
+  if (process.env.NODE_ENV === 'test') {
+    plugin._TEST_getChangeMap = () => changeMap;
+  }
+
+  return plugin;
+}
