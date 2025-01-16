@@ -28,19 +28,25 @@ Find our latest version ready to supercharge your development:
 ## Installation
 
 ### npm
+
 Add some performance tracking to your project:
+
 ```bash
 npm install @agoda-com/devfeedback-vite --save-dev
 ```
 
 ### yarn
+
 Sprinkle some metrics into your development environment:
+
 ```bash
 yarn add -D @agoda-com/devfeedback-vite
 ```
 
 ### pnpm
+
 Power up your project with:
+
 ```bash
 pnpm add -D @agoda-com/devfeedback-vite
 ```
@@ -71,7 +77,6 @@ devFeedback({
       includeSystemMetrics: true
     })
 ```
-
 
 ## Configuration Options
 
