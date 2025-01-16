@@ -1,4 +1,3 @@
-import type { Plugin } from 'vite';
 
 export interface StaticMetadata {
   userName: string;

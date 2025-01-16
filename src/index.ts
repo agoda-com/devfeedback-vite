@@ -105,7 +105,7 @@ export default function viteTimingPlugin(): Plugin {
                 
               affectedFiles.forEach(file => {
                 if (!file) return;
-                for (const [key, entry] of changeMap.entries()) {
+                for (const [, entry] of changeMap.entries()) {
                   if (entry.file === file && entry.status === 'detected') {
                     entry.hmrStartedAt = timestamp;
                     entry.status = 'hmr-started';
@@ -138,7 +138,7 @@ export default function viteTimingPlugin(): Plugin {
     
     handleHotUpdate({ file, modules }) {
       const relativePath = path.relative(process.cwd(), file);
-      for (const [key, entry] of changeMap.entries()) {
+      for (const [, entry] of changeMap.entries()) {
         if (entry.file === relativePath) {
           entry.moduleCount = modules.length;
           break;

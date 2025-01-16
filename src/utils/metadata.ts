@@ -10,6 +10,7 @@ export const runGitCommand = (args: string[]): string | undefined => {
     const result = spawnSync('git', args);
     return result.stdout.toString().trim();
   } catch (error) {
+    console.log(error);
     return undefined;
   }
 };
