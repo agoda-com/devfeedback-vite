@@ -1,5 +1,5 @@
 {
-    "name": "@agoda-com/devfeedback-vite",
+    "name": "agoda-devfeedback-vite",
     "version": "0.1.0",
     "description": "Vite plugin for collecting and reporting development feedback metrics",
     "main": "dist/index.js",
