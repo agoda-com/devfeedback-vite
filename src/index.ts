@@ -17,7 +17,54 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
   const getChangeKey = (file: string, timestamp: number): string => 
     `${file}:${timestamp}`;
   
-  const clientScript = `
+  const clientScript = {
+    // Main timing function
+    timingFunction: `
+      window.__VITE_TIMING__ = {
+        pendingUpdates: new Set(),
+        markHMRStart: function(file) {
+          this.pendingUpdates.add(file);
+        },
+        markHMREnd: function(file) {
+          if (this.pendingUpdates.has(file)) {
+            const endTime = performance.now();
+            fetch('/__vite_timing_hmr_complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ file, clientTimestamp: endTime })
+            });
+            this.pendingUpdates.delete(file);
+          }
+        }
+      };
+    `,
+    // HMR module script
+    hmrModule: `
+      if (import.meta.hot) {
+        // Track update start
+        import.meta.hot.on('vite:beforeUpdate', (data) => {
+          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+            data.updates.forEach(update => {
+              if (update.path) {
+                window.__VITE_TIMING__.markHMRStart(update.path);
+              }
+            });
+          }
+        });
+
+        // Track update completion
+        import.meta.hot.on('vite:afterUpdate', (data) => {
+          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+            data.updates.forEach(update => {
+              if (update.path) {
+                window.__VITE_TIMING__.markHMREnd(update.path);
+              }
+            });
+          }
+        });
+      }
+    `
+  };  const clientScript = `
     window.__VITE_TIMING__ = {
       markHMREnd: function(file) {
         const endTime = performance.now();
@@ -163,11 +210,22 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
       });
     },
     
-    transformIndexHtml(html: string) {
-      return html.replace(
-        '</head>',
-        `<script>${clientScript}</script></head>`
-      );
+    transformIndexHtml(html: string, { mode }) {
+      // Only inject scripts in development mode
+      if (mode === 'development') {
+        // Insert the main timing function first
+        html = html.replace(
+          '</head>',
+          `<script>${clientScript.timingFunction}</script></head>`
+        );
+
+        // Insert the HMR module script after Vite's client script
+        html = html.replace(
+          '</body>',
+          `<script type="module">${clientScript.hmrModule}</script></body>`
+        );
+      }
+      return html;
     },
     
     handleHotUpdate({ file, modules }) {
