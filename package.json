@@ -1,6 +1,6 @@
 {
     "name": "agoda-devfeedback-vite",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Vite plugin for collecting and reporting development feedback metrics",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -36,7 +36,7 @@
     },
     "homepage": "https://github.com/agoda-com/devfeedback-vite#readme",
     "peerDependencies": {
-        "vite": "^4.0.0 || ^5.0.0"
+        "vite": "^4.0.0 || ^5.0.0 || ^6.0.0"
     },
     "dependencies": {
         "node-fetch": "^3.3.0",
