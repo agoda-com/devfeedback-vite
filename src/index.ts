@@ -18,39 +18,46 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
     `${file}:${timestamp}`;
   
   const clientScript = `
-  window.__VITE_TIMING__ = {
-    markHMREnd: function(file) {
-      const endTime = performance.now();
-      fetch('/__vite_timing_hmr_complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file, clientTimestamp: endTime })
-      });
-    }
-  };
-
-  // Hook into Vite's HMR system
-  if (import.meta.hot) {
-    const originalAccept = import.meta.hot.accept;
-    import.meta.hot.accept = function (deps, callback) {
-      if (typeof deps === 'function') {
-        callback = deps;
-        deps = undefined;
+    window.__VITE_TIMING__ = {
+      markHMREnd: function(file) {
+        const endTime = performance.now();
+        fetch('/__vite_timing_hmr_complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file, clientTimestamp: endTime })
+        });
       }
-      
-      return originalAccept.call(import.meta.hot, deps, function (...args) {
-        const result = callback?.(...args);
-        // Get the updated module path
-        const updatedModules = args[0] || {};
-        const filePath = Object.keys(updatedModules)[0];
-        if (filePath) {
-          window.__VITE_TIMING__.markHMREnd(filePath);
-        }
-        return result;
-      });
     };
-  }
-`;
+
+    // Wait for Vite's HMR system to initialize
+    function initHMRHooks() {
+      if (typeof __vite__) {
+        const hotModules = __vite__?.hot?.data?.hotModules;
+        if (hotModules) {
+          Object.keys(hotModules).forEach(id => {
+            const mod = hotModules[id];
+            const originalAccept = mod.accept;
+            mod.accept = function (deps, callback) {
+              if (typeof deps === 'function') {
+                callback = deps;
+                deps = undefined;
+              }
+              
+              return originalAccept.call(mod, deps, function (...args) {
+                const result = callback?.(...args);
+                window.__VITE_TIMING__.markHMREnd(id);
+                return result;
+              });
+            };
+          });
+        }
+      }
+    }
+
+    // Try to initialize immediately and also add a fallback
+    initHMRHooks();
+    document.addEventListener('vite:beforeUpdate', initHMRHooks);
+  `;
 
   const handleHMRComplete = async (
     req: IncomingMessage,
