@@ -1,7 +1,6 @@
-
 import { performance } from 'perf_hooks';
 import path from 'path';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Plugin, ViteDevServer, IndexHtmlTransformContext } from 'vite';
 import type { TimingEntry, HMRUpdate, ClientMessage } from './types';
 import { getCommonMetadata } from './utils/metadata';
 import { sendMetrics } from './utils/metrics';
@@ -170,9 +169,9 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
       });
     },
     
-    transformIndexHtml(html: string, { mode }) {
-      // Only inject scripts in development mode
-      if (mode === 'development') {
+    transformIndexHtml(html: string, ctx?: { [key: string]: any }) {
+      // Check if we're in development based on context
+      if (!ctx || ctx.command !== 'build') {
         // Insert the main timing function first
         html = html.replace(
           '</head>',

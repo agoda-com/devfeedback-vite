@@ -68,11 +68,14 @@ describe('viteTimingPlugin', () => {
 
   it('should not inject scripts in production mode', () => {
     const html = '<html><head></head><body></body></html>';
-    const result = plugin.transformIndexHtml?.(html, { mode: 'production' });
+    const result = plugin.transformIndexHtml?.(html, { 
+      command: 'build',
+      originalUrl: '/'
+    });
     
+    expect(result).toBe(html);  // Should return unmodified HTML
     expect(result).not.toContain('window.__VITE_TIMING__');
     expect(result).not.toContain('import.meta.hot');
-    expect(result).toBe(html);
   });
 
   it('should handle HMR updates with module count', () => {
