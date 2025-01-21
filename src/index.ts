@@ -22,17 +22,22 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
       window.__VITE_TIMING__ = {
         pendingUpdates: new Set(),
         markHMRStart: function(file) {
+          console.log('[vite-timing] Starting HMR for:', file);
           this.pendingUpdates.add(file);
         },
         markHMREnd: function(file) {
+          console.log('[vite-timing] Completing HMR for:', file);
           if (this.pendingUpdates.has(file)) {
             const endTime = performance.now();
+            console.log('[vite-timing] Sending metrics for:', file);
             fetch('/__vite_timing_hmr_complete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ file, clientTimestamp: endTime })
-            });
+            }).catch(err => console.error('[vite-timing] Failed to send metrics:', err));
             this.pendingUpdates.delete(file);
+          } else {
+            console.log('[vite-timing] No pending update found for:', file);
           }
         }
       };
@@ -40,8 +45,10 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
     // HMR module script
     hmrModule: `
       if (import.meta.hot) {
+        console.log('[vite-timing] Setting up HMR hooks');
         // Track update start
         import.meta.hot.on('vite:beforeUpdate', (data) => {
+          console.log('[vite-timing] beforeUpdate:', data);
           if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
             data.updates.forEach(update => {
               if (update.path) {
@@ -53,6 +60,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
         // Track update completion
         import.meta.hot.on('vite:afterUpdate', (data) => {
+          console.log('[vite-timing] afterUpdate:', data);
           if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
             data.updates.forEach(update => {
               if (update.path) {
@@ -61,9 +69,11 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
             });
           }
         });
+      } else {
+        console.log('[vite-timing] HMR not available');
       }
     `
-  };  
+  };
 
   const handleHMRComplete = async (
     req: IncomingMessage,
