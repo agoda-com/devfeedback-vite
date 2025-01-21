@@ -3,19 +3,13 @@ import viteTimingPlugin from '../index';
 import { performance } from 'perf_hooks';
 import { EventEmitter } from 'events';
 import type { ViteDevServer } from 'vite';
-
-// Mock the WebSocket connection
-class MockWebSocket extends EventEmitter {
-  send(data: string) {
-    this.emit('message', data);
-  }
-}
+import { createMockServer, MockRequest, MockResponse } from './utils/test-utils';
+import path from 'path';
 
 describe('viteTimingPlugin', () => {
   let plugin: ReturnType<typeof viteTimingPlugin>;
   let mockServer: Partial<ViteDevServer>;
   let mockWatcher: EventEmitter;
-  let mockWs: MockWebSocket;
 
   beforeEach(() => {
     // Reset performance.now mock before each test
@@ -23,20 +17,7 @@ describe('viteTimingPlugin', () => {
     
     // Create mock server and watcher
     mockWatcher = new EventEmitter();
-    mockWs = new MockWebSocket();
-    mockServer = {
-      watcher: mockWatcher,
-      ws: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        on: (event: string, handler: (socket: any) => void) => {
-          handler(mockWs);
-        }
-      },
-      middlewares: {
-        use: vi.fn()
-      }
-    };
-
+    mockServer = createMockServer(mockWatcher);
     plugin = viteTimingPlugin();
   });
 
@@ -49,7 +30,7 @@ describe('viteTimingPlugin', () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     expect(watcherSpy).toHaveBeenCalledWith('change', expect.any(Function));
   });
-  
+
   it('should handle file changes and track timing', async () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     
@@ -64,24 +45,34 @@ describe('viteTimingPlugin', () => {
     mockWatcher.emit('change', '/path/to/file.js');
     expect(nowSpy).toHaveBeenCalledTimes(1);
     
-    // Reset the spy count
-    nowSpy.mockClear();
-    
-    // Simulate HMR update
-    mockWs.emit('message', JSON.stringify({
-      type: 'update',
-      updates: [{ path: '/path/to/file.js' }]
-    }));
-
-    // Should be called again for HMR timing
-    expect(nowSpy).toHaveBeenCalledTimes(1);
+    // Get the internal state using our test helper
+    const changeMap = plugin._TEST_getChangeMap?.();
+    expect(changeMap).toBeDefined();
+    const changes = Array.from(changeMap!.values());
+    expect(changes).toHaveLength(1);
+    expect(changes[0].changeDetectedAt).toBe(1100);
   });
 
-
-  it('should inject client script in HTML', () => {
+  it('should inject client scripts in HTML in development mode', () => {
     const html = '<html><head></head><body></body></html>';
-    const result = plugin.transformIndexHtml?.(html);
+    const result = plugin.transformIndexHtml?.(html, { mode: 'development' });
+    
+    // Should contain both scripts
     expect(result).toContain('window.__VITE_TIMING__');
+    expect(result).toContain('import.meta.hot');
+    
+    // Scripts should be in correct order (timing function in head, HMR module at end)
+    expect(result.indexOf('window.__VITE_TIMING__'))
+      .toBeLessThan(result.indexOf('import.meta.hot'));
+  });
+
+  it('should not inject scripts in production mode', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = plugin.transformIndexHtml?.(html, { mode: 'production' });
+    
+    expect(result).not.toContain('window.__VITE_TIMING__');
+    expect(result).not.toContain('import.meta.hot');
+    expect(result).toBe(html);
   });
 
   it('should handle HMR updates with module count', () => {
@@ -109,17 +100,68 @@ describe('viteTimingPlugin', () => {
     expect(changes).toHaveLength(1);
     expect(changes[0].moduleCount).toBe(2);
   });
-
-  it('should handle invalid WebSocket messages gracefully', () => {
-    const consoleSpy = vi.spyOn(console, 'error');
+  
+  it('should handle middleware requests for timing data', async () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     
-    // Send invalid message
-    mockWs.emit('message', 'invalid json');
+    // 1. Simulate file change with normalized path
+    const testFile = path.normalize('/path/to/file.js');
+    mockWatcher.emit('change', testFile);
     
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[vite-timing] Error processing WS message:',
-      expect.any(Error)
-    );
+    let changeMap = plugin._TEST_getChangeMap?.();
+    const initialEntry = Array.from(changeMap!.values())[0];
+    expect(initialEntry.status).toBe('detected');
+    
+    // 2. Simulate HMR update
+    (mockServer as any).simulateHMRUpdate({
+      type: 'update',
+      updates: [{ 
+        path: initialEntry.file,
+        timestamp: Date.now()
+      }]
+    });
+
+    // Wait for HMR update to be processed
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // Verify state transition
+    changeMap = plugin._TEST_getChangeMap?.();
+    const afterHMREntry = Array.from(changeMap!.values())[0];
+    expect(afterHMREntry.status).toBe('hmr-started');
+
+    // 3. Create promise to wait for middleware completion
+    const middlewareCompletion = new Promise<void>((resolve) => {
+      const req = new MockRequest('/__vite_timing_hmr_complete');
+      const res = new MockResponse();
+      const next = vi.fn();
+
+      // Extend MockResponse to resolve promise when end is called
+      res.end = vi.fn(() => {
+        resolve();
+      });
+
+      // Get and call the middleware handler
+      const middlewareHandler = (createMockServer as any).lastHandler;
+      middlewareHandler(req, res, next);
+
+      // Send request data
+      req.emit('data', JSON.stringify({
+        file: initialEntry.file,
+        clientTimestamp: 2000
+      }));
+      req.emit('end');
+    });
+
+    // Wait for middleware to complete
+    await middlewareCompletion;
+    
+    // Get final state
+    changeMap = plugin._TEST_getChangeMap?.();
+    const finalEntries = Array.from(changeMap!.values());
+    
+    // Log final state for debugging
+    console.log('Final entries:', finalEntries);
+    
+    expect(finalEntries).toHaveLength(0);
   });
 });

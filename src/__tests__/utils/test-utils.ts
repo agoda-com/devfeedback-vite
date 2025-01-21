@@ -1,53 +1,83 @@
 import { vi } from 'vitest';
-import type { ViteDevServer } from 'vite';
+import type { ViteDevServer, Connect } from 'vite';
 import { EventEmitter } from 'events';
 
-export class MockWebSocket extends EventEmitter {
-  send(data: string) {
-    this.emit('message', data);
+class MockSocketClient extends EventEmitter {
+  send: jest.Mock;
+  messageHandlers: ((data: string) => void)[];
+
+  constructor() {
+    super();
+    this.send = vi.fn();
+    this.messageHandlers = [];
+  }
+
+  on(event: string, handler: (data: string) => void): this {
+    if (event === 'message') {
+      this.messageHandlers.push(handler);
+    }
+    super.on(event, handler);
+    return this;
+  }
+
+  simulateMessage(data: string) {
+    this.emit('message', data); // Use emit instead of directly calling handlers
   }
 }
 
-export function createMockServer(): Partial<ViteDevServer> {
-  const mockWatcher = new EventEmitter();
-  const mockWs = new MockWebSocket();
+export function createMockServer(watcher = new EventEmitter()): Partial<ViteDevServer> & { simulateHMRUpdate: (data: any) => void } {
+  const socket = new MockSocketClient();
+  
+  const wsServer = {
+    on: (event: string, callback: (socket: MockSocketClient) => void) => {
+      if (event === 'connection') {
+        // Call the callback immediately with our socket
+        callback(socket);
+      }
+      return wsServer;
+    }
+  };
   
   return {
-    watcher: mockWatcher,
-    ws: {
-      on: (event: string, handler: (socket: unknown) => void) => {
-        handler(mockWs);
-      }
-    },
+    watcher,
+    ws: wsServer,
     middlewares: {
-      use: vi.fn()
+      use: vi.fn((handler: Connect.HandleFunction) => {
+        (createMockServer as any).lastHandler = handler;
+      })
+    },
+    moduleGraph: {
+      getModuleById: vi.fn(),
+      invalidateModule: vi.fn()
+    },
+    config: {
+      mode: 'development',
+      root: process.cwd()
+    },
+    _mockSocket: socket,
+    simulateHMRUpdate(data: any) {
+      socket.simulateMessage(JSON.stringify(data));
     }
   };
 }
 
-export function mockPerformanceNow() {
-  let time = 1000;
-  return vi.spyOn(performance, 'now').mockImplementation(() => {
-    time += 100;
-    return time;
-  });
+export class MockRequest extends EventEmitter {
+  url: string;
+  method: string;
+
+  constructor(url: string, method = 'POST') {
+    super();
+    this.url = url;
+    this.method = method;
+  }
 }
 
-export function createTestMetadata() {
-  return {
-    userName: 'test-user',
-    cpuCount: 4,
-    hostname: 'test-host',
-    platform: 'test-platform',
-    os: 'test-os',
-    projectName: 'test-project',
-    repository: 'test-repo',
-    repositoryName: 'test-repo-name',
-    totalMemory: 8000000000,
-    cpuModels: ['Test CPU'],
-    cpuSpeed: [2400],
-    nodeVersion: 'v16.0.0',
-    v8Version: '8.0.0',
-    commitSha: 'test-sha'
-  };
+export class MockResponse {
+  writeHead: jest.Mock;
+  end: jest.Mock;
+
+  constructor() {
+    this.writeHead = vi.fn();
+    this.end = vi.fn();
+  }
 }
