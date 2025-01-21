@@ -1,6 +1,6 @@
 {
     "name": "agoda-devfeedback-vite",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "description": "Vite plugin for collecting and reporting development feedback metrics",
     "type": "module",
     "exports": {
