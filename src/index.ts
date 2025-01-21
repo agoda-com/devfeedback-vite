@@ -1,6 +1,6 @@
 import { performance } from 'perf_hooks';
 import path from 'path';
-import type { Plugin, ViteDevServer, IndexHtmlTransformContext } from 'vite';
+import type { Plugin, ViteDevServer } from 'vite';
 import type { TimingEntry, HMRUpdate, ClientMessage } from './types';
 import { getCommonMetadata } from './utils/metadata';
 import { sendMetrics } from './utils/metrics';
