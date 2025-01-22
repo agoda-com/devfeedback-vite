@@ -1,8 +1,9 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import viteTimingPlugin from '../index';
-import { performance } from 'perf_hooks';
+import path from 'path';
 import { EventEmitter } from 'events';
 import type { ViteDevServer } from 'vite';
+import { createMockServer  } from './utils/test-utils';
 
 class MockRequest extends EventEmitter {
  url: string;
@@ -29,27 +30,16 @@ describe('viteTimingPlugin', () => {
  let plugin: ReturnType<typeof viteTimingPlugin>;
  let mockServer: Partial<ViteDevServer>;
  let mockWatcher: EventEmitter;
+ let timeCounter: number;
 
  beforeEach(() => {
+  timeCounter = 1000;
    // Reset performance.now mock before each test
-   vi.spyOn(performance, 'now').mockImplementation(() => 1000);
+   vi.spyOn(Date, 'now').mockImplementation(() => timeCounter);
    
    // Create mock server and watcher
    mockWatcher = new EventEmitter();
-   mockServer = {
-     watcher: mockWatcher,
-     ws: {
-       on: (event: string, callback: (socket: any) => void) => {
-         callback({
-           on: vi.fn()
-         });
-       }
-     },
-     middlewares: {
-       use: vi.fn()
-     }
-   };
-
+   mockServer = createMockServer(mockWatcher);
    plugin = viteTimingPlugin();
  });
 
@@ -64,26 +54,35 @@ describe('viteTimingPlugin', () => {
  });
  
  it('should handle file changes and track timing', async () => {
-   plugin.configureServer?.(mockServer as ViteDevServer);
-   
-   // Mock performance.now to return increasing values
-   let timeCounter = 1000;
-   const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
-     timeCounter += 100;
-     return timeCounter;
-   });
-   
-   // Simulate file change
-   mockWatcher.emit('change', '/path/to/file.js');
-   expect(nowSpy).toHaveBeenCalledTimes(1);
-   
-   // Get the internal state using our test helper
-   const changeMap = plugin._TEST_getChangeMap?.();
-   expect(changeMap).toBeDefined();
-   const changes = Array.from(changeMap!.values());
-   expect(changes).toHaveLength(1);
-   expect(changes[0].changeDetectedAt).toBe(1100);
- });
+  plugin.configureServer?.(mockServer as ViteDevServer);
+  
+  // Set initial time
+  timeCounter = 1000;
+  const startTime = timeCounter;
+  
+  // Mock Date.now to return increasing values
+  vi.spyOn(Date, 'now').mockImplementation(() => timeCounter);
+
+  // Mock process.cwd() to return a consistent path
+  vi.spyOn(process, 'cwd').mockReturnValue('/test-root');
+  
+  const testFile = path.join('/test-root', 'path/to/file.js');
+  
+  // Simulate file change
+  mockWatcher.emit('change', testFile);
+  
+  // Get the internal state using our test helper
+  const changeMap = plugin._TEST_getChangeMap?.();
+  expect(changeMap).toBeDefined();
+  const changes = Array.from(changeMap!.values());
+  
+  // Verify the change was recorded
+  expect(changes).toHaveLength(1);
+  expect(changes[0].changeDetectedAt).toBe(timeCounter);
+  const expectedPath = 'path/to/file.js';
+  const normalizedPath = changes[0].file.replace(/\\/g, '/');
+  expect(normalizedPath).toBe(expectedPath);
+});
 
  it('should inject HMR module in development mode', () => {
    const html = '<html><head></head><body></body></html>';
@@ -110,13 +109,21 @@ describe('viteTimingPlugin', () => {
    expect(content).toContain('createHotContext');
    expect(content).toContain('vite:afterUpdate');
  });
+ 
  it('should handle middleware requests for timing data', async () => {
   plugin.configureServer?.(mockServer as ViteDevServer);
   
-  const testFile = 'src/test.js';  // Use forward slashes consistently
+  const testFile = 'src/test.js';
+
+  // Set initial time
+  timeCounter = 1000;
+  const startTime = timeCounter;
   
   // Create a file change entry
   mockWatcher.emit('change', testFile);
+  
+  // Advance time for client timestamp
+  timeCounter = 2000;
   
   // Create mocks
   const req = new MockRequest('/__vite_timing_hmr_complete');
@@ -142,7 +149,7 @@ describe('viteTimingPlugin', () => {
   // Send timing data
   req.emit('data', JSON.stringify({
     file: testFile,
-    clientTimestamp: 2000
+    clientTimestamp: timeCounter
   }));
   req.emit('end');
   

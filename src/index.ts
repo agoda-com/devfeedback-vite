@@ -38,7 +38,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
          if (Array.isArray(data.updates)) {
            data.updates.forEach(update => {
              if (update.path) {
-               const endTime = performance.now();
+               const endTime = Date.now();
                fetch('/__vite_timing_hmr_complete', {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
@@ -60,7 +60,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
    
    configureServer(server: ViteDevServer) {
      server.watcher.on('change', (file: string) => {
-       const timestamp = performance.now();
+       const timestamp = Date.now();
        const relativePath = normalizePath(path.relative(process.cwd(), file));
        
        changeMap.set(relativePath, {
