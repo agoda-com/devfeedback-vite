@@ -22,14 +22,11 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
       window.__VITE_TIMING__ = {
         pendingUpdates: new Set(),
         markHMRStart: function(file) {
-          console.log('[vite-timing] Starting HMR for:', file);
           this.pendingUpdates.add(file);
         },
         markHMREnd: function(file) {
-          console.log('[vite-timing] Completing HMR for:', file);
           if (this.pendingUpdates.has(file)) {
             const endTime = performance.now();
-            console.log('[vite-timing] Sending metrics for:', file);
             fetch('/__vite_timing_hmr_complete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -52,7 +49,6 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
     if (hot) {
       hot.on('vite:beforeUpdate', (data) => {
-        console.log('[vite-timing] beforeUpdate:', data);
         if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
           data.updates.forEach(update => {
             if (update.path) {
@@ -63,7 +59,6 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
       });
 
       hot.on('vite:afterUpdate', (data) => {
-        console.log('[vite-timing] afterUpdate:', data);
         if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
           data.updates.forEach(update => {
             if (update.path) {
@@ -82,6 +77,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
   ): Promise<void> => {
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     req.on('end', async () => {
       try {
         const { file, clientTimestamp } = JSON.parse(body) as ClientMessage;
@@ -112,20 +108,22 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
             await sendMetrics(metricsData);
             
-            console.log('\n[vite-timing] Update cycle completed:');
-            console.log(`File: ${entry.file}`);
-            console.log(`Server processing time: ${serverProcessingTime.toFixed(2)}ms`);
-            console.log(`Total time (including client): ${totalTime.toFixed(2)}ms\n`);
-            
             changeMap.delete(key);
-            break;
+
+            // Return 200 with success message
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+            return;
           }
         }
+        // If we didn't find a matching entry
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, reason: 'No matching HMR entry found' }));
       } catch (err) {
         console.error('[vite-timing] Error processing timing data:', err);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Unknown error' }));
       }
-      res.writeHead(204);
-      res.end();
     });
   };
   
