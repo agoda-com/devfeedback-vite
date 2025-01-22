@@ -17,7 +17,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
     `${file}:${timestamp}`;
   
   const clientScript = {
-    // Main timing function
+    // Main timing function stays the same
     timingFunction: `
       window.__VITE_TIMING__ = {
         pendingUpdates: new Set(),
@@ -42,42 +42,36 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
         }
       };
     `,
-    // HMR module script - now waits for Vite's client
-    hmrModule: `
-      // Wait for Vite's client to be ready
-      const setupHMR = () => {
-        if (import.meta && import.meta.hot) {
-          console.log('[vite-timing] Setting up HMR hooks');
-          
-          import.meta.hot.on('vite:beforeUpdate', (data) => {
-            console.log('[vite-timing] beforeUpdate:', data);
-            if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
-              data.updates.forEach(update => {
-                if (update.path) {
-                  window.__VITE_TIMING__.markHMRStart(update.path);
-                }
-              });
-            }
-          });
+    // Create a virtual module for our HMR hooks
+    virtualHmrModule: `
+      import { createHotContext } from 'vite/client';
 
-          import.meta.hot.on('vite:afterUpdate', (data) => {
-            console.log('[vite-timing] afterUpdate:', data);
-            if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
-              data.updates.forEach(update => {
-                if (update.path) {
-                  window.__VITE_TIMING__.markHMREnd(update.path);
-                }
-              });
-            }
-          });
-        } else {
-          console.log('[vite-timing] Waiting for HMR...');
-          console.log(import.meta);
-          setTimeout(setupHMR, 1000);
-        }
-      };
+      const hot = createHotContext('/@vite-timing/hmr');
+      console.log('[vite-timing] Setting up HMR hooks with hot context:', !!hot);
 
-      setupHMR();
+      if (hot) {
+        hot.on('vite:beforeUpdate', (data) => {
+          console.log('[vite-timing] beforeUpdate:', data);
+          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+            data.updates.forEach(update => {
+              if (update.path) {
+                window.__VITE_TIMING__.markHMRStart(update.path);
+              }
+            });
+          }
+        });
+
+        hot.on('vite:afterUpdate', (data) => {
+          console.log('[vite-timing] afterUpdate:', data);
+          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+            data.updates.forEach(update => {
+              if (update.path) {
+                window.__VITE_TIMING__.markHMREnd(update.path);
+              }
+            });
+          }
+        });
+      }
     `
   };
 
@@ -184,7 +178,17 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
         }
       });
     },
-    
+    resolveId(id: string) {
+      if (id === '/@vite-timing/hmr') {
+        return id;
+      }
+    },
+
+    load(id: string) {
+      if (id === '/@vite-timing/hmr') {
+        return clientScript.virtualHmrModule;
+      }
+    },
     transformIndexHtml(html: string, ctx?: { [key: string]: any }) {
       if (!ctx || ctx.command !== 'build') {
         // Insert the timing function in head
@@ -193,10 +197,10 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
           `<script>${clientScript.timingFunction}</script></head>`
         );
 
-         // Insert the HMR module script at the end of body
-         html = html.replace(
-          '</body>',
-          `<script type="module">${clientScript.hmrModule}</script></body>`
+        // Import our virtual HMR module
+        html = html.replace(
+          '</head>',
+          `<script type="module" src="/@vite-timing/hmr"></script></head>`
         );
       }
       return html;

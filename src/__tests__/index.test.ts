@@ -54,30 +54,33 @@ describe('viteTimingPlugin', () => {
   });
 
   it('should inject client scripts in HTML in development mode', () => {
-    const html = '<html><head></head><body></body></html>';
-    const result = plugin.transformIndexHtml?.(html, { mode: 'development' });
+    const html = '<html><head></head><body><script type="module" src="/@vite/client"></script></body></html>';
+    const result = plugin.transformIndexHtml?.(html, { command: 'serve' });
     
-    // Should contain both scripts
+    // Should contain timing function
     expect(result).toContain('window.__VITE_TIMING__');
-    expect(result).toContain('import.meta.hot');
     
-    // Scripts should be in correct order (timing function in head, HMR module at end)
-    expect(result.indexOf('window.__VITE_TIMING__'))
-      .toBeLessThan(result.indexOf('import.meta.hot'));
+    // Should contain our virtual HMR module import
+    expect(result).toContain('/@vite-timing/hmr');
+    
+    // Scripts should be in correct order
+    const timingIndex = result.indexOf('window.__VITE_TIMING__');
+    const hmrModuleIndex = result.indexOf('/@vite-timing/hmr');
+    expect(timingIndex).toBeLessThan(hmrModuleIndex);
+    
+    // Should preserve Vite's client script
+    expect(result).toContain('/@vite/client');
   });
 
   it('should not inject scripts in production mode', () => {
-    const html = '<html><head></head><body></body></html>';
-    const result = plugin.transformIndexHtml?.(html, { 
-      command: 'build',
-      originalUrl: '/'
-    });
+    const html = '<html><head></head><body><script type="module" src="/@vite/client"></script></body></html>';
+    const result = plugin.transformIndexHtml?.(html, { command: 'build' });
     
     expect(result).toBe(html);  // Should return unmodified HTML
     expect(result).not.toContain('window.__VITE_TIMING__');
-    expect(result).not.toContain('import.meta.hot');
+    expect(result).not.toContain('/@vite-timing/hmr');
   });
-
+  
   it('should handle HMR updates with module count', () => {
     plugin.configureServer?.(mockServer as ViteDevServer);
     
