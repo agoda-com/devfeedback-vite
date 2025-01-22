@@ -2,6 +2,8 @@ import { performance } from 'perf_hooks';
 import path from 'path';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
+import { getCommonMetadata } from './utils/metadata';
+import { sendMetrics } from './utils/metrics';
 
 interface TimingEntry {
  file: string;
@@ -20,11 +22,10 @@ export interface ViteTimingPlugin extends Plugin {
 export default function viteTimingPlugin(): ViteTimingPlugin {
  const changeMap = new Map<string, TimingEntry>();
 
-    // Add utility function to normalize paths
-    const normalizePath = (filePath: string): string => {
-      return filePath.replace(/\\/g, '/');
-    };
-  
+ const normalizePath = (filePath: string): string => {
+   return filePath.replace(/\\/g, '/');
+ };
+
  const clientScript = {
    virtualHmrModule: `
      import { createHotContext as __vite__createHotContext } from '/@vite/client';
@@ -62,7 +63,6 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
        const timestamp = performance.now();
        const relativePath = normalizePath(path.relative(process.cwd(), file));
        
-       // Store the file and start time
        changeMap.set(relativePath, {
          file: relativePath,
          changeDetectedAt: timestamp
@@ -79,31 +79,43 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
          req.on('end', async () => {
            try {
              const { file, clientTimestamp } = JSON.parse(body) as ClientMessage;
-             console.log('[vite-timing] Received completion for file:', file);
+             const normalizedFile = normalizePath(file);
+             console.log('[vite-timing] Received completion for file:', normalizedFile);
              
-             const entry = changeMap.get(file.replace(/^\/+/, ''));
+             const entry = changeMap.get(normalizedFile);
 
              if (entry) {
                const totalTime = clientTimestamp - entry.changeDetectedAt;
+               
+               // Prepare metrics data
+               const metricsData = {
+                 ...getCommonMetadata(totalTime),
+                 type: 'hmr' as const,
+                 file: entry.file,
+                 totalTime
+               };
+
+               await sendMetrics(metricsData);
                
                console.log('[vite-timing] Update cycle completed:');
                console.log(`File: ${entry.file}`);
                console.log(`Total time: ${totalTime.toFixed(2)}ms\n`);
                
                // Clear the entry
-               changeMap.delete(file);
+               changeMap.delete(normalizedFile);
                
                res.writeHead(200, { 'Content-Type': 'application/json' });
                res.end(JSON.stringify({ success: true }));
              } else {
-               console.log('[vite-timing] No timing entry found for:', file);
+               console.log('[vite-timing] No timing entry found for:', normalizedFile);
                console.log('Current entries:', Array.from(changeMap.keys()));
                
                res.writeHead(200, { 'Content-Type': 'application/json' });
                res.end(JSON.stringify({ 
                  success: false, 
                  reason: 'No timing entry found for file',
-                 file
+                 file: normalizedFile,
+                 availableFiles: Array.from(changeMap.keys())
                }));
              }
            } catch (err) {

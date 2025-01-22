@@ -118,25 +118,36 @@ describe('viteTimingPlugin', () => {
   // Create a file change entry
   mockWatcher.emit('change', testFile);
   
-  // Mock request/response
+  // Create mocks
   const req = new MockRequest('/__vite_timing_hmr_complete');
   const res = new MockResponse();
+  const next = vi.fn();
+  
+  // Create a promise that resolves when the response is sent
+  const responsePromise = new Promise<void>((resolve) => {
+    // Override end to resolve our promise
+    const originalEnd = res.end;
+    res.end = vi.fn((...args) => {
+      originalEnd.apply(res, args);
+      resolve();
+    });
+  });
   
   // Get middleware handler
   const middlewareHandler = (mockServer.middlewares?.use as jest.Mock).mock.calls[0][0];
   
   // Call middleware with request
-  middlewareHandler(req, res, vi.fn());
+  middlewareHandler(req, res, next);
   
-  // Send timing data with same path format
+  // Send timing data
   req.emit('data', JSON.stringify({
     file: testFile,
     clientTimestamp: 2000
   }));
   req.emit('end');
   
-  // Wait for async processing
-  await new Promise(resolve => setTimeout(resolve, 10));
+  // Wait for response to be sent
+  await responsePromise;
   
   // Verify response
   expect(res.writeHead).toHaveBeenCalledWith(200, {

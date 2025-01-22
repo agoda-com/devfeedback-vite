@@ -1,4 +1,3 @@
-
 export interface StaticMetadata {
   userName: string;
   cpuCount: number;
@@ -28,25 +27,14 @@ export interface CommonMetadata extends StaticMetadata {
 export interface TimingEntry {
   file: string;
   changeDetectedAt: number;
-  status: 'detected' | 'hmr-started' | 'complete';
-  hmrStartedAt?: number;
-  hmrCompletedAt?: number;
-  clientCompletedAt?: number;
   moduleCount?: number;
 }
 
 export interface MetricsData extends CommonMetadata {
   type: 'hmr';
   file: string;
-  serverProcessingTime: number;
   totalTime: number;
-  moduleCount: number;
-  timings: {
-    changeDetected: number;
-    hmrStarted: number;
-    hmrCompleted: number;
-    clientCompleted: number;
-  };
+  moduleCount?: number;
 }
 
 export interface HMRUpdate {
@@ -57,4 +45,8 @@ export interface HMRUpdate {
 export interface ClientMessage {
   file: string;
   clientTimestamp: number;
+}
+
+export interface ViteTimingPlugin {
+  _TEST_getChangeMap?: () => Map<string, TimingEntry>;
 }
