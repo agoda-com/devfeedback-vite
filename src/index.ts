@@ -72,7 +72,8 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
           });
         } else {
           console.log('[vite-timing] Waiting for HMR...');
-          setTimeout(setupHMR, 100);
+          console.log(import.meta);
+          setTimeout(setupHMR, 1000);
         }
       };
 
