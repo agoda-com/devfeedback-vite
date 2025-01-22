@@ -75,12 +75,13 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
        if (req.url === '/__vite_timing_hmr_complete') {
          let body = '';
          req.on('data', chunk => { body += chunk.toString(); });
+         // eslint-disable-next-line @typescript-eslint/no-misused-promises
          req.on('end', async () => {
            try {
              const { file, clientTimestamp } = JSON.parse(body) as ClientMessage;
              console.log('[vite-timing] Received completion for file:', file);
              
-             const entry = changeMap.get(file);
+             const entry = changeMap.get(file.replace(/^\/+/, ''));
 
              if (entry) {
                const totalTime = clientTimestamp - entry.changeDetectedAt;
