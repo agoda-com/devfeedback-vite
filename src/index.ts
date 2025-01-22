@@ -31,23 +31,23 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
      const hot = __vite__createHotContext('/@vite-timing/hmr');
 
+     function sendSilentRequest(data) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/__vite_timing_hmr_complete', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify(data));
+     }
+
      if (hot) {
        hot.on('vite:afterUpdate', (data) => {
          if (Array.isArray(data.updates)) {
            data.updates.forEach(update => {
              if (update.path) {
                const endTime = Date.now();
-               fetch('/__vite_timing_hmr_complete', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json',
-                    // Add this header to suppress the console logs
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-Silent': 'true' },
-                 body: JSON.stringify({ 
-                   file: update.path,
-                   clientTimestamp: endTime 
-                 })
-               }).catch(err => console.error('[vite-timing] Failed to send metrics:', err));
+               sendSilentRequest({ 
+                  file: update.path,
+                  clientTimestamp: endTime 
+                });
              }
            });
          }
