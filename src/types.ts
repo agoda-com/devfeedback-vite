@@ -17,7 +17,7 @@ export interface StaticMetadata {
 
 export interface CommonMetadata extends StaticMetadata {
   id: string;
-  timeTaken: number;
+  timeTaken: bigint;
   branch: string;
   timestamp: number;
   builtAt: string;
