@@ -44,35 +44,36 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
     `,
     // Create a virtual module for our HMR hooks
     virtualHmrModule: `
-      import { createHotContext } from 'vite/client';
+    // Use Vite's client entry point
+    import { createHotContext as __vite__createHotContext } from '/@vite/client';
 
-      const hot = createHotContext('/@vite-timing/hmr');
-      console.log('[vite-timing] Setting up HMR hooks with hot context:', !!hot);
+    const hot = __vite__createHotContext('/@vite-timing/hmr');
+    console.log('[vite-timing] Setting up HMR hooks with hot context:', !!hot);
 
-      if (hot) {
-        hot.on('vite:beforeUpdate', (data) => {
-          console.log('[vite-timing] beforeUpdate:', data);
-          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
-            data.updates.forEach(update => {
-              if (update.path) {
-                window.__VITE_TIMING__.markHMRStart(update.path);
-              }
-            });
-          }
-        });
+    if (hot) {
+      hot.on('vite:beforeUpdate', (data) => {
+        console.log('[vite-timing] beforeUpdate:', data);
+        if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+          data.updates.forEach(update => {
+            if (update.path) {
+              window.__VITE_TIMING__.markHMRStart(update.path);
+            }
+          });
+        }
+      });
 
-        hot.on('vite:afterUpdate', (data) => {
-          console.log('[vite-timing] afterUpdate:', data);
-          if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
-            data.updates.forEach(update => {
-              if (update.path) {
-                window.__VITE_TIMING__.markHMREnd(update.path);
-              }
-            });
-          }
-        });
-      }
-    `
+      hot.on('vite:afterUpdate', (data) => {
+        console.log('[vite-timing] afterUpdate:', data);
+        if (window.__VITE_TIMING__ && Array.isArray(data.updates)) {
+          data.updates.forEach(update => {
+            if (update.path) {
+              window.__VITE_TIMING__.markHMREnd(update.path);
+            }
+          });
+        }
+      });
+    }
+  `
   };
 
   const handleHMRComplete = async (
