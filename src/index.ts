@@ -23,7 +23,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
  const changeMap = new Map<string, TimingEntry>();
 
  const normalizePath = (filePath: string): string => {
-   return filePath.replace(/\\/g, '/');
+   return filePath.replace(/\\/g, '/').replace(/^\/+/, '');
  };
 
  const clientScript = {
