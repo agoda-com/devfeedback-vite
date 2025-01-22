@@ -62,7 +62,7 @@ export const getCommonMetadata = (
   return {
     ...staticMetadata,
     id: uuidv1(),
-    timeTaken,
+    timeTaken: Math.round(timeTaken),  // Ensure integer
     branch: runGitCommand(['rev-parse', '--abbrev-ref', 'HEAD']) ?? UNKNOWN_VALUE,
     timestamp: Date.now(),
     builtAt: new Date().toISOString(),
