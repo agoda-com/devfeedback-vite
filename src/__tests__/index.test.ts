@@ -58,7 +58,6 @@ describe('viteTimingPlugin', () => {
   
   // Set initial time
   timeCounter = 1000;
-  const startTime = timeCounter;
   
   // Mock Date.now to return increasing values
   vi.spyOn(Date, 'now').mockImplementation(() => timeCounter);
@@ -117,7 +116,6 @@ describe('viteTimingPlugin', () => {
 
   // Set initial time
   timeCounter = 1000;
-  const startTime = timeCounter;
   
   // Create a file change entry
   mockWatcher.emit('change', testFile);

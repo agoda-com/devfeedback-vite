@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import path from 'path';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -34,14 +33,16 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
      if (hot) {
        hot.on('vite:afterUpdate', (data) => {
-         console.log('[vite-timing] afterUpdate:', data);
          if (Array.isArray(data.updates)) {
            data.updates.forEach(update => {
              if (update.path) {
                const endTime = Date.now();
                fetch('/__vite_timing_hmr_complete', {
                  method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
+                 headers: { 'Content-Type': 'application/json',
+                    // Add this header to suppress the console logs
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Silent': 'true' },
                  body: JSON.stringify({ 
                    file: update.path,
                    clientTimestamp: endTime 
@@ -67,8 +68,6 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
          file: relativePath,
          changeDetectedAt: timestamp
        });
-
-       console.log('[vite-timing] File change detected:', relativePath);
      });
 
      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
@@ -80,7 +79,6 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
            try {
              const { file, clientTimestamp } = JSON.parse(body) as ClientMessage;
              const normalizedFile = normalizePath(file);
-             console.log('[vite-timing] Received completion for file:', normalizedFile);
              
              const entry = changeMap.get(normalizedFile);
 
@@ -97,18 +95,12 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
 
                await sendMetrics(metricsData);
                
-               console.log('[vite-timing] Update cycle completed:');
-               console.log(`File: ${entry.file}`);
-               console.log(`Total time: ${totalTime.toFixed(2)}ms\n`);
-               
                // Clear the entry
                changeMap.delete(normalizedFile);
                
                res.writeHead(200, { 'Content-Type': 'application/json' });
                res.end(JSON.stringify({ success: true }));
              } else {
-               console.log('[vite-timing] No timing entry found for:', normalizedFile);
-               console.log('Current entries:', Array.from(changeMap.keys()));
                
                res.writeHead(200, { 'Content-Type': 'application/json' });
                res.end(JSON.stringify({ 
