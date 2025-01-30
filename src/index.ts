@@ -89,8 +89,7 @@ export default function viteTimingPlugin(): ViteTimingPlugin {
                const metricsData = {
                  ...getCommonMetadata(totalTime),
                  type: 'hmr' as const,
-                 file: entry.file,
-                 totalTime
+                 file: entry.file
                };
 
                await sendMetrics(metricsData);
